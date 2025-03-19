@@ -71,9 +71,14 @@ const Index = () => {
         }
         
         // Use a coin
-        const success = await useCoin(user.id);
+        const { success, updatedUser } = await useCoin(user.id);
         if (!success) {
           return; // The useCoin function will show appropriate error
+        }
+        
+        // Update the local user state to show updated coin count immediately
+        if (updatedUser) {
+          useAuth().user.coins = updatedUser.coins;
         }
         
         toast.success('Used 1 coin for this large file upload');

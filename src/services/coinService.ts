@@ -1,5 +1,6 @@
 
 import { toast } from "sonner";
+import { User } from "@/types/user";
 
 export interface CoinPurchase {
   id: string;
@@ -56,13 +57,13 @@ export const purchaseCoins = async (userId: string, amount: number): Promise<boo
 };
 
 // Function to use a coin
-export const useCoin = async (userId: string): Promise<boolean> => {
+export const useCoin = async (userId: string): Promise<{ success: boolean, updatedUser?: User }> => {
   try {
     // Get user
     const userJson = localStorage.getItem(`user_${userId}`);
     if (!userJson) {
       toast.error("User not found");
-      return false;
+      return { success: false };
     }
     
     const user = JSON.parse(userJson);
@@ -70,7 +71,7 @@ export const useCoin = async (userId: string): Promise<boolean> => {
     // Check if user has enough coins
     if (user.coins < 1) {
       toast.error("Not enough coins. Please purchase more.");
-      return false;
+      return { success: false };
     }
     
     // Deduct coin
@@ -87,9 +88,9 @@ export const useCoin = async (userId: string): Promise<boolean> => {
       }
     }
     
-    return true;
+    return { success: true, updatedUser: user };
   } catch (error) {
     console.error("Failed to use coin:", error);
-    return false;
+    return { success: false };
   }
 };

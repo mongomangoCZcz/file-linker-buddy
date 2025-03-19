@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, AuthContextType } from "@/types/user";
 import { toast } from "sonner";
@@ -166,12 +165,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     toast.success("Logged out successfully");
   };
 
+  // Add a function to update the user state
+  const updateUser = (updatedUser: Partial<User>) => {
+    if (!user) return;
+    
+    const newUser = { ...user, ...updatedUser };
+    setUser(newUser);
+    localStorage.setItem("user", JSON.stringify(newUser));
+  };
+
   const value = {
     user,
     isLoading,
     login,
     register,
-    logout
+    logout,
+    updateUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
