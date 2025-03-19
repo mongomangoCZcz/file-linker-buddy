@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getFileById, downloadFile } from '@/services/fileService';
-import { ArrowLeft, Download, FileIcon, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, FileIcon, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const Download = () => {
+const DownloadPage = () => {
   const { fileId } = useParams<{ fileId: string }>();
   const [fileData, setFileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +108,7 @@ const Download = () => {
                   onClick={handleDownload}
                   className="w-full flex items-center justify-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 subtle-transition"
                 >
-                  <Download className="w-5 h-5 mr-2" />
+                  <FileIcon className="w-5 h-5 mr-2" />
                   Download File
                 </button>
               </div>
@@ -124,4 +124,4 @@ const Download = () => {
   );
 };
 
-export default Download;
+export default DownloadPage;
