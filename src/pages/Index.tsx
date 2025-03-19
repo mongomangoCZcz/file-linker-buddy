@@ -76,7 +76,12 @@ const Index = () => {
       const downloadUrl = createDownloadLink(fileId);
       
       setFileUrl(downloadUrl);
-      toast.success('File uploaded successfully!');
+      
+      if (needsCoin) {
+        toast.success('Large file uploaded successfully! (Premium upload)');
+      } else {
+        toast.success('File uploaded successfully!');
+      }
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);

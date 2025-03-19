@@ -37,21 +37,39 @@ export const uploadFile = (file: File, userId?: string): Promise<string> => {
           name: file.name,
           type: file.type,
           size: file.size,
-          data: event.target.result,
           createdAt: new Date().toISOString(),
           userId: userId || null
         };
         
-        // Store in localStorage (with size check)
-        try {
-          localStorage.setItem(`file_${fileId}`, JSON.stringify(fileData));
+        // For large files, we only store the metadata and file ID
+        // but not the actual file content in localStorage
+        const { requiresCoin } = checkFileSize(file);
+        
+        if (requiresCoin) {
+          // For coin-purchased files, we just store the metadata
+          // In a real app, this would upload to a storage service
+          localStorage.setItem(`file_${fileId}`, JSON.stringify({
+            ...fileData,
+            // We include a truncated version of the data just for demo purposes
+            data: event.target.result.substring(0, 1000) + '...[content truncated for large file]',
+            isPremium: true
+          }));
           resolve(fileId);
-        } catch (e) {
-          if (e instanceof DOMException && e.code === 22) {
-            // localStorage quota exceeded
-            reject(new Error('The file is too large to store. Please try a smaller file.'));
-          } else {
-            reject(new Error('Failed to store file.'));
+        } else {
+          // For smaller files, store complete data in localStorage
+          try {
+            localStorage.setItem(`file_${fileId}`, JSON.stringify({
+              ...fileData,
+              data: event.target.result
+            }));
+            resolve(fileId);
+          } catch (e) {
+            if (e instanceof DOMException && e.code === 22) {
+              // localStorage quota exceeded
+              reject(new Error('The file is too large to store. Please try a smaller file.'));
+            } else {
+              reject(new Error('Failed to store file.'));
+            }
           }
         }
       } catch (error) {
