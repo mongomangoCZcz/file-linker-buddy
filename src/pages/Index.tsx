@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileUpload } from '@/components/ui/file-upload';
 import FileLink from '@/components/file-link';
-import { uploadFile, checkFileSize } from '@/services/fileService';
+import { uploadFile, checkFileSize, createDownloadLink } from '@/services/fileService';
 import { useCoin } from '@/services/coinService';
 import { useAuth } from '@/context/AuthContext';
 import UserProfile from '@/components/user-profile';
