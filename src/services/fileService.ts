@@ -1,6 +1,6 @@
 
 /**
- * Simple file storage service using browser's localStorage
+ * File storage service using browser's localStorage
  * In a production app, this would be replaced with a proper backend service
  */
 
@@ -9,8 +9,17 @@ const generateFileId = (): string => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+// Check file size
+export const checkFileSize = (file: File): { requiresCoin: boolean, size: number } => {
+  const MAX_FREE_SIZE = 100 * 1024 * 1024; // 100MB
+  return {
+    requiresCoin: file.size > MAX_FREE_SIZE,
+    size: file.size
+  };
+};
+
 // Store file data
-export const uploadFile = (file: File): Promise<string> => {
+export const uploadFile = (file: File, userId?: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     const fileId = generateFileId();
     const reader = new FileReader();
@@ -29,7 +38,8 @@ export const uploadFile = (file: File): Promise<string> => {
           type: file.type,
           size: file.size,
           data: event.target.result,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          userId: userId || null
         };
         
         // Store in localStorage (with size check)
