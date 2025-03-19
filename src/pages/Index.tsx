@@ -24,11 +24,13 @@ const Index = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [requiresCoin, setRequiresCoin] = useState(false);
+  const [showContinueOption, setShowContinueOption] = useState(false);
   const { user } = useAuth();
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
     setFileUrl(null); // Reset previous link
+    setShowContinueOption(false);
     
     // Check if file requires a coin
     const { requiresCoin: needsCoin } = checkFileSize(file);
@@ -39,9 +41,10 @@ const Index = () => {
     setSelectedFile(null);
     setFileUrl(null);
     setRequiresCoin(false);
+    setShowContinueOption(false);
   };
 
-  const handleUpload = async () => {
+  const handleUpload = async (forceFree = false) => {
     if (!selectedFile) {
       toast.error('Please select a file first');
       return;
@@ -53,10 +56,17 @@ const Index = () => {
       // Check file size
       const { requiresCoin: needsCoin, size } = checkFileSize(selectedFile);
       
-      // If file needs a coin and user is logged in
-      if (needsCoin) {
+      // If file needs a coin and user is logged in and not forcing free upload
+      if (needsCoin && !forceFree) {
         if (!user) {
           toast.error('You need to be logged in to upload files larger than 100MB');
+          return;
+        }
+        
+        // Check if user has enough coins
+        if (user.coins < 1) {
+          setShowContinueOption(true);
+          toast.error("Not enough coins. Add more coins or continue with limited functionality.");
           return;
         }
         
@@ -72,13 +82,15 @@ const Index = () => {
       // Simulate network delay for better UX
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      const fileId = await uploadFile(selectedFile, user?.id);
+      const fileId = await uploadFile(selectedFile, user?.id, forceFree);
       const downloadUrl = createDownloadLink(fileId);
       
       setFileUrl(downloadUrl);
       
-      if (needsCoin) {
+      if (needsCoin && !forceFree) {
         toast.success('Large file uploaded successfully! (Premium upload)');
+      } else if (needsCoin && forceFree) {
+        toast.success('File uploaded with limited functionality');
       } else {
         toast.success('File uploaded successfully!');
       }
@@ -90,6 +102,7 @@ const Index = () => {
       }
     } finally {
       setIsUploading(false);
+      setShowContinueOption(false);
     }
   };
 
@@ -172,10 +185,31 @@ const Index = () => {
           </div>
         )}
 
-        {!fileUrl && (
+        {showContinueOption && (
+          <div className="w-full p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm text-orange-800 mb-3">
+              You don't have enough coins for premium upload. You can still upload with limited functionality.
+            </p>
+            <div className="flex space-x-3">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/store">Add coins</Link>
+              </Button>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => handleUpload(true)}
+                disabled={isUploading}
+              >
+                Continue anyway
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!fileUrl && !showContinueOption && (
           <button
-            onClick={handleUpload}
-            disabled={!selectedFile || isUploading || (requiresCoin && (!user || user.coins < 1))}
+            onClick={() => handleUpload(false)}
+            disabled={!selectedFile || isUploading}
             className="px-8 py-3 text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed subtle-transition"
           >
             {isUploading ? 'Uploading...' : 'Upload File'}

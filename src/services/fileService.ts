@@ -19,7 +19,7 @@ export const checkFileSize = (file: File): { requiresCoin: boolean, size: number
 };
 
 // Store file data
-export const uploadFile = (file: File, userId?: string): Promise<string> => {
+export const uploadFile = (file: File, userId?: string, forceFree = false): Promise<string> => {
   return new Promise((resolve, reject) => {
     const fileId = generateFileId();
     const reader = new FileReader();
@@ -45,7 +45,7 @@ export const uploadFile = (file: File, userId?: string): Promise<string> => {
         // but not the actual file content in localStorage
         const { requiresCoin } = checkFileSize(file);
         
-        if (requiresCoin) {
+        if (requiresCoin && !forceFree) {
           // For coin-purchased files, we just store the metadata
           // In a real app, this would upload to a storage service
           localStorage.setItem(`file_${fileId}`, JSON.stringify({
