@@ -25,7 +25,7 @@ const Index = () => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [requiresCoin, setRequiresCoin] = useState(false);
   const [showContinueOption, setShowContinueOption] = useState(false);
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -78,7 +78,7 @@ const Index = () => {
         
         // Update the local user state to show updated coin count immediately
         if (updatedUser) {
-          useAuth().user.coins = updatedUser.coins;
+          updateUser({ coins: updatedUser.coins });
         }
         
         toast.success('Used 1 coin for this large file upload');
