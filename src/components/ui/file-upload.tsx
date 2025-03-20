@@ -31,14 +31,23 @@ const FileUpload = ({
     e.stopPropagation();
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      onFileSelected(e.dataTransfer.files[0]);
+      validateAndProcessFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      onFileSelected(e.target.files[0]);
+      validateAndProcessFile(e.target.files[0]);
     }
+  };
+
+  const validateAndProcessFile = (file: File) => {
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File size cannot exceed 2GB");
+      return;
+    }
+    onFileSelected(file);
   };
 
   const triggerFileInput = () => {
@@ -72,7 +81,7 @@ const FileUpload = ({
             <p className="mb-2 text-sm text-gray-500">
               <span className="font-medium">Click to upload</span> or drag and drop
             </p>
-            <p className="text-xs text-gray-500">Any file (Max size: 100MB)</p>
+            <p className="text-xs text-gray-500">Maximum file size: 2GB</p>
           </div>
           <input
             ref={fileInputRef}

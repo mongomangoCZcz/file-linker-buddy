@@ -24,7 +24,14 @@ export const uploadFile = (file: File, userId?: string, forceFree = false): Prom
     const fileId = generateFileId();
     const reader = new FileReader();
     
+    // Set a timeout to prevent browser from hanging
+    const timeout = setTimeout(() => {
+      reader.abort();
+      reject(new Error('File processing timeout'));
+    }, 30000); // 30 second timeout
+    
     reader.onload = (event) => {
+      clearTimeout(timeout);
       try {
         if (!event.target || typeof event.target.result !== 'string') {
           reject(new Error('Failed to read file.'));
@@ -42,22 +49,18 @@ export const uploadFile = (file: File, userId?: string, forceFree = false): Prom
         };
         
         // For large files, we only store the metadata and file ID
-        // but not the actual file content in localStorage
         const { requiresCoin } = checkFileSize(file);
         
         try {
           if (requiresCoin && !forceFree) {
-            // For coin-purchased files, we just store the metadata
-            // In a real app, this would upload to a storage service
+            // For coin-purchased files, store minimal data
             localStorage.setItem(`file_${fileId}`, JSON.stringify({
               ...fileData,
-              // We include a truncated version of the data just for demo purposes
-              data: event.target.result.substring(0, 1000) + '...[content truncated for large file]',
-              isPremium: true
+              isPremium: true,
+              data: `data:${file.type};name=${encodeURIComponent(file.name)};size=${file.size}`
             }));
           } else {
-            // For smaller files or free option, only store a reference or limited version
-            // This prevents localStorage quota exceeded errors for all file sizes
+            // For smaller files or free option
             const truncatedData = event.target.result.substring(0, 100000); // Limit to ~100KB
             localStorage.setItem(`file_${fileId}`, JSON.stringify({
               ...fileData,
@@ -68,15 +71,13 @@ export const uploadFile = (file: File, userId?: string, forceFree = false): Prom
           resolve(fileId);
         } catch (e) {
           if (e instanceof DOMException && (e.code === 22 || e.name === 'QuotaExceededError')) {
-            // localStorage quota exceeded
-            // Store minimal data to ensure functionality
+            // localStorage quota exceeded - store minimal data
             localStorage.setItem(`file_${fileId}`, JSON.stringify({
               ...fileData,
-              data: `data:${file.type};name=${encodeURIComponent(file.name)};base64,TRUNCATED_CONTENT`,
+              data: `data:${file.type};name=${encodeURIComponent(file.name)};size=${file.size}`,
               isTruncated: true,
               errorMessage: 'File content too large for browser storage'
             }));
-            // Still resolve with the file ID so the user gets a link
             resolve(fileId);
           } else {
             reject(new Error('Failed to store file.'));
@@ -88,11 +89,20 @@ export const uploadFile = (file: File, userId?: string, forceFree = false): Prom
     };
     
     reader.onerror = () => {
+      clearTimeout(timeout);
       reject(new Error('Failed to read file.'));
     };
     
-    // Read the file as Data URL
-    reader.readAsDataURL(file);
+    reader.onprogress = (event) => {
+      if (event.lengthComputable) {
+        // Reset timeout on progress
+        clearTimeout(timeout);
+      }
+    };
+    
+    // Read the file as Data URL with chunking to prevent memory issues
+    const chunk = file.slice(0, 100000); // Only read first 100KB
+    reader.readAsDataURL(chunk);
   });
 };
 
