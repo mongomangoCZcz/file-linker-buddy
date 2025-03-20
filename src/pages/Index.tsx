@@ -33,7 +33,7 @@ const Index = () => {
     setShowContinueOption(false);
     
     // Check if file requires a coin
-    const { requiresCoin: needsCoin } = checkFileSize(file);
+    const { requiresCoin: needsCoin, size } = checkFileSize(file);
     setRequiresCoin(needsCoin);
   };
 
@@ -70,7 +70,7 @@ const Index = () => {
           return;
         }
         
-        // Use a coin
+        // Use a coin - this will update the user's coin count in localStorage
         const { success, updatedUser } = await useCoin(user.id);
         if (!success) {
           return; // The useCoin function will show appropriate error
