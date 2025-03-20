@@ -45,31 +45,41 @@ export const uploadFile = (file: File, userId?: string, forceFree = false): Prom
         // but not the actual file content in localStorage
         const { requiresCoin } = checkFileSize(file);
         
-        if (requiresCoin && !forceFree) {
-          // For coin-purchased files, we just store the metadata
-          // In a real app, this would upload to a storage service
-          localStorage.setItem(`file_${fileId}`, JSON.stringify({
-            ...fileData,
-            // We include a truncated version of the data just for demo purposes
-            data: event.target.result.substring(0, 1000) + '...[content truncated for large file]',
-            isPremium: true
-          }));
-          resolve(fileId);
-        } else {
-          // For smaller files, store complete data in localStorage
-          try {
+        try {
+          if (requiresCoin && !forceFree) {
+            // For coin-purchased files, we just store the metadata
+            // In a real app, this would upload to a storage service
             localStorage.setItem(`file_${fileId}`, JSON.stringify({
               ...fileData,
-              data: event.target.result
+              // We include a truncated version of the data just for demo purposes
+              data: event.target.result.substring(0, 1000) + '...[content truncated for large file]',
+              isPremium: true
             }));
+          } else {
+            // For smaller files or free option, only store a reference or limited version
+            // This prevents localStorage quota exceeded errors for all file sizes
+            const truncatedData = event.target.result.substring(0, 100000); // Limit to ~100KB
+            localStorage.setItem(`file_${fileId}`, JSON.stringify({
+              ...fileData,
+              data: truncatedData + (truncatedData.length < event.target.result.length ? '...[content truncated]' : ''),
+              isTruncated: truncatedData.length < event.target.result.length
+            }));
+          }
+          resolve(fileId);
+        } catch (e) {
+          if (e instanceof DOMException && (e.code === 22 || e.name === 'QuotaExceededError')) {
+            // localStorage quota exceeded
+            // Store minimal data to ensure functionality
+            localStorage.setItem(`file_${fileId}`, JSON.stringify({
+              ...fileData,
+              data: `data:${file.type};name=${encodeURIComponent(file.name)};base64,TRUNCATED_CONTENT`,
+              isTruncated: true,
+              errorMessage: 'File content too large for browser storage'
+            }));
+            // Still resolve with the file ID so the user gets a link
             resolve(fileId);
-          } catch (e) {
-            if (e instanceof DOMException && e.code === 22) {
-              // localStorage quota exceeded
-              reject(new Error('The file is too large to store. Please try a smaller file.'));
-            } else {
-              reject(new Error('Failed to store file.'));
-            }
+          } else {
+            reject(new Error('Failed to store file.'));
           }
         }
       } catch (error) {
