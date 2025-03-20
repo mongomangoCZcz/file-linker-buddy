@@ -21,10 +21,9 @@ const UserProfile = () => {
       {user ? (
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <User className="h-5 w-5" />
-              </div>
+            <Button variant="outline" className="flex items-center gap-2 px-3">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">{user.email.split('@')[0]}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
