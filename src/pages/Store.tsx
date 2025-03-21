@@ -1,16 +1,28 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Coins, CreditCard } from 'lucide-react';
+import { ArrowLeft, Coins, CreditCard, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { purchaseCoins } from '@/services/coinService';
+import { createCheckoutSession, processPayment } from '@/services/coinService';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Store = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentPackage, setCurrentPackage] = useState<null | { amount: number, price: number }>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<'card' | 'processing' | 'success'>('card');
 
   const coinPackages = [
     { amount: 5, price: 4.95, label: "Starter Pack" },
@@ -18,25 +30,53 @@ const Store = () => {
     { amount: 20, price: 18.90, label: "Value Pack" },
   ];
 
-  const handlePurchase = async (amount: number) => {
+  const handlePurchase = async (amount: number, price: number) => {
     if (!user) {
       toast.error("Please sign in to purchase coins");
       navigate("/login");
       return;
     }
 
-    setIsProcessing(true);
+    setCurrentPackage({ amount, price });
+    setShowPaymentDialog(true);
+    setPaymentStep('card');
+  };
+
+  const handlePaymentSubmit = async () => {
+    if (!user || !currentPackage) return;
+
     try {
-      // In a real app, this would integrate with a payment processor
-      const success = await purchaseCoins(user.id, amount);
+      setPaymentStep('processing');
+      setIsProcessing(true);
+      
+      // Create checkout session
+      const checkoutId = await createCheckoutSession(
+        user.id,
+        currentPackage.amount,
+        currentPackage.price / currentPackage.amount
+      );
+      
+      // Simulate a payment processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Process the payment (in a real app, this would be handled by a webhook)
+      const success = await processPayment(checkoutId);
       
       if (success) {
-        toast.success(`Successfully purchased ${amount} coins!`);
+        setPaymentStep('success');
+        // Wait a bit before closing the modal
+        setTimeout(() => {
+          setShowPaymentDialog(false);
+          toast.success(`Successfully purchased ${currentPackage.amount} coins!`);
+        }, 2000);
       } else {
-        toast.error("Purchase failed");
+        toast.error("Payment processing failed");
+        setShowPaymentDialog(false);
       }
     } catch (error) {
-      toast.error("Failed to process purchase");
+      console.error("Payment error:", error);
+      toast.error("Failed to process payment");
+      setShowPaymentDialog(false);
     } finally {
       setIsProcessing(false);
     }
@@ -93,13 +133,13 @@ const Store = () => {
                   <div className="text-2xl font-bold mb-1">{pkg.amount} Coins</div>
                   <div className="text-gray-500 mb-4">${pkg.price.toFixed(2)}</div>
                   <Button
-                    onClick={() => handlePurchase(pkg.amount)}
+                    onClick={() => handlePurchase(pkg.amount, pkg.price)}
                     disabled={isProcessing}
                     className="w-full"
                     variant={pkg.popular ? "default" : "outline"}
                   >
                     <CreditCard className="w-4 h-4 mr-2" />
-                    {isProcessing ? "Processing..." : "Purchase"}
+                    Purchase
                   </Button>
                 </div>
               </div>
@@ -112,7 +152,7 @@ const Store = () => {
               <li>Each coin allows you to upload one file larger than 100MB</li>
               <li>New accounts receive 1 free coin</li>
               <li>Coins never expire</li>
-              <li>In a real app, payments would be processed securely</li>
+              <li>Payments are processed securely</li>
             </ul>
           </div>
         </div>
@@ -121,6 +161,79 @@ const Store = () => {
       <footer className="mt-16 text-center text-sm text-gray-500">
         <p>Designed with simplicity in mind • {new Date().getFullYear()}</p>
       </footer>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {paymentStep === 'card' && "Payment Details"}
+              {paymentStep === 'processing' && "Processing Payment"}
+              {paymentStep === 'success' && "Payment Successful"}
+            </DialogTitle>
+            <DialogDescription>
+              {paymentStep === 'card' && `Purchase ${currentPackage?.amount} coins for $${currentPackage?.price.toFixed(2)}`}
+              {paymentStep === 'processing' && "Please wait while we process your payment"}
+              {paymentStep === 'success' && `You've successfully purchased ${currentPackage?.amount} coins!`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentStep === 'card' && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Card Information</h3>
+                <div className="rounded-md border border-input p-3 text-sm">
+                  <p className="text-muted-foreground">Demo Mode: No real payment will be processed</p>
+                  <p className="font-medium mt-1">4242 4242 4242 4242</p>
+                  <div className="flex justify-between mt-2">
+                    <span>Any future date</span>
+                    <span>Any 3 digits</span>
+                  </div>
+                </div>
+              </div>
+
+              <Alert>
+                <AlertDescription>
+                  This is a demo payment system. No real payment will be processed.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {paymentStep === 'processing' && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-center text-sm text-muted-foreground">
+                Processing your payment...
+              </p>
+            </div>
+          )}
+
+          {paymentStep === 'success' && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <Coins className="h-8 w-8 text-green-600" />
+              </div>
+              <p className="text-center text-sm text-muted-foreground">
+                {currentPackage?.amount} coins have been added to your account!
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            {paymentStep === 'card' && (
+              <Button onClick={handlePaymentSubmit} className="w-full">
+                Pay ${currentPackage?.price.toFixed(2)}
+              </Button>
+            )}
+            {paymentStep === 'success' && (
+              <Button onClick={() => setShowPaymentDialog(false)} className="w-full">
+                Done
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
