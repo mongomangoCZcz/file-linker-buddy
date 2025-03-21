@@ -15,14 +15,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { User } from '@/types/user';
 
 const Store = () => {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, updateUser } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPackage, setCurrentPackage] = useState<null | { amount: number, price: number }>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'card' | 'processing' | 'success'>('card');
+  const [localUserState, setLocalUserState] = useState<User | null>(user);
+
+  // Update local user state when the auth context user changes
+  React.useEffect(() => {
+    if (user) {
+      setLocalUserState(user);
+    }
+  }, [user]);
 
   const coinPackages = [
     { amount: 5, price: 4.95, label: "Starter Pack" },
@@ -59,8 +68,11 @@ const Store = () => {
       // Simulate a payment processing delay
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Process the payment (in a real app, this would be handled by a webhook)
-      const success = await processPayment(checkoutId);
+      // Process the payment with callback to update UI
+      const success = await processPayment(checkoutId, (updatedUser) => {
+        setLocalUserState(updatedUser);
+        updateUser(updatedUser);
+      });
       
       if (success) {
         setPaymentStep('success');
@@ -107,9 +119,9 @@ const Store = () => {
             <p className="text-gray-500 mb-2">
               Purchase coins to upload files larger than 100MB
             </p>
-            {user && (
+            {localUserState && (
               <p className="text-sm font-medium text-primary">
-                Current Balance: {user.coins} {user.coins === 1 ? "coin" : "coins"}
+                Current Balance: {localUserState.coins} {localUserState.coins === 1 ? "coin" : "coins"}
               </p>
             )}
           </div>

@@ -43,7 +43,10 @@ export const createCheckoutSession = async (
 };
 
 // Function to process successful payment (in real app, this would be called by a webhook)
-export const processPayment = async (checkoutId: string): Promise<boolean> => {
+export const processPayment = async (
+  checkoutId: string, 
+  onSuccess?: (updatedUser: User) => void
+): Promise<boolean> => {
   try {
     // Get checkout data
     const checkoutData = localStorage.getItem(`checkout_${checkoutId}`);
@@ -60,8 +63,9 @@ export const processPayment = async (checkoutId: string): Promise<boolean> => {
     checkout.status = 'completed';
     localStorage.setItem(`checkout_${checkoutId}`, JSON.stringify(checkout));
     
-    // Add coins to user
-    return await purchaseCoins(checkout.userId, checkout.amount);
+    // Add coins to user with callback
+    const result = await purchaseCoins(checkout.userId, checkout.amount, onSuccess);
+    return result;
   } catch (error) {
     console.error("Failed to process payment:", error);
     return false;
@@ -69,7 +73,11 @@ export const processPayment = async (checkoutId: string): Promise<boolean> => {
 };
 
 // Mock function for purchasing coins (in real app, this would connect to a payment provider)
-export const purchaseCoins = async (userId: string, amount: number): Promise<boolean> => {
+export const purchaseCoins = async (
+  userId: string, 
+  amount: number,
+  onSuccess?: (updatedUser: User) => void
+): Promise<boolean> => {
   try {
     // Simulate payment processing delay
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -103,6 +111,11 @@ export const purchaseCoins = async (userId: string, amount: number): Promise<boo
         if (currentUser.id === userId) {
           currentUser.coins = user.coins;
           localStorage.setItem("user", JSON.stringify(currentUser));
+          
+          // Call the success callback with the updated user
+          if (onSuccess) {
+            onSuccess(currentUser);
+          }
         }
       }
     }
