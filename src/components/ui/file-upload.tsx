@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -76,6 +77,9 @@ const FileUpload = ({
               <span className="font-medium">Click to upload</span> or drag and drop
             </p>
             <p className="text-xs text-gray-500">Upload files of any size</p>
+            <p className="mt-2 text-xs text-gray-500">
+              <span className="text-primary font-medium">Upload 100MB free</span> and larger files for coins
+            </p>
           </div>
           <input
             ref={fileInputRef}
