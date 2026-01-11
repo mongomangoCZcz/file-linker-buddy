@@ -1,96 +1,118 @@
 
-import React, { useState } from 'react';
-import { ArrowLeft, Coins, CreditCard, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Coins, CreditCard, Loader2, CheckCircle } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { createCheckoutSession, processPayment } from '@/services/coinService';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types/user';
 
 const Store = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading, updateUser } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentPackage, setCurrentPackage] = useState<null | { amount: number, price: number }>(null);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'card' | 'processing' | 'success'>('card');
+  const [processingPackage, setProcessingPackage] = useState<string | null>(null);
   const [localUserState, setLocalUserState] = useState<User | null>(user);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [purchasedCoins, setPurchasedCoins] = useState(0);
 
   // Update local user state when the auth context user changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (user) {
       setLocalUserState(user);
     }
   }, [user]);
 
+  // Handle successful payment redirect
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const coins = searchParams.get('coins');
+    const userId = searchParams.get('userId');
+    
+    if (success === 'true' && coins && userId) {
+      const coinAmount = parseInt(coins, 10);
+      setPurchasedCoins(coinAmount);
+      setShowSuccess(true);
+      
+      // Update user's coin balance in localStorage
+      const userJson = localStorage.getItem(`user_${userId}`);
+      if (userJson) {
+        const userData = JSON.parse(userJson);
+        userData.coins += coinAmount;
+        localStorage.setItem(`user_${userId}`, JSON.stringify(userData));
+        
+        // Update current user if it's the active user
+        const currentUserJson = localStorage.getItem("user");
+        if (currentUserJson) {
+          const currentUser = JSON.parse(currentUserJson);
+          if (currentUser.id === userId) {
+            currentUser.coins = userData.coins;
+            localStorage.setItem("user", JSON.stringify(currentUser));
+            setLocalUserState(currentUser);
+            updateUser(currentUser);
+          }
+        }
+      }
+      
+      toast.success(`Successfully purchased ${coinAmount} coins!`);
+      
+      // Clear URL params after processing
+      window.history.replaceState({}, '', '/store');
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => setShowSuccess(false), 5000);
+    }
+    
+    if (searchParams.get('canceled') === 'true') {
+      toast.error('Payment was canceled');
+      window.history.replaceState({}, '', '/store');
+    }
+  }, [searchParams, updateUser]);
+
   const coinPackages = [
-    { amount: 5, price: 4.95, label: "Starter Pack" },
-    { amount: 10, price: 9.90, label: "Regular Pack", popular: true },
-    { amount: 20, price: 18.90, label: "Value Pack" },
+    { id: 'starter', amount: 5, price: 4.95, label: "Starter Pack" },
+    { id: 'regular', amount: 10, price: 9.90, label: "Regular Pack", popular: true },
+    { id: 'value', amount: 20, price: 18.90, label: "Value Pack" },
   ];
 
-  const handlePurchase = async (amount: number, price: number) => {
+  const handlePurchase = async (packageId: string) => {
     if (!user) {
       toast.error("Please sign in to purchase coins");
       navigate("/login");
       return;
     }
 
-    setCurrentPackage({ amount, price });
-    setShowPaymentDialog(true);
-    setPaymentStep('card');
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!user || !currentPackage) return;
-
     try {
-      setPaymentStep('processing');
       setIsProcessing(true);
+      setProcessingPackage(packageId);
       
-      // Create checkout session
-      const checkoutId = await createCheckoutSession(
-        user.id,
-        currentPackage.amount,
-        currentPackage.price / currentPackage.amount
-      );
-      
-      // Simulate a payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Process the payment with callback to update UI
-      const success = await processPayment(checkoutId, (updatedUser) => {
-        setLocalUserState(updatedUser);
-        updateUser(updatedUser);
+      // Call edge function to create Stripe checkout session
+      const { data, error } = await supabase.functions.invoke('create-coin-checkout', {
+        body: {
+          packageId,
+          userId: user.id,
+          userEmail: user.email,
+        },
       });
-      
-      if (success) {
-        setPaymentStep('success');
-        // Wait a bit before closing the modal
-        setTimeout(() => {
-          setShowPaymentDialog(false);
-          toast.success(`Successfully purchased ${currentPackage.amount} coins!`);
-        }, 2000);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.url;
       } else {
-        toast.error("Payment processing failed");
-        setShowPaymentDialog(false);
+        throw new Error('No checkout URL received');
       }
     } catch (error) {
       console.error("Payment error:", error);
-      toast.error("Failed to process payment");
-      setShowPaymentDialog(false);
+      toast.error("Failed to initiate payment. Please try again.");
     } finally {
       setIsProcessing(false);
+      setProcessingPackage(null);
     }
   };
 
@@ -109,6 +131,16 @@ const Store = () => {
           <ArrowLeft className="w-4 h-4 mr-1" />
           <span>Back to upload</span>
         </Link>
+
+        {showSuccess && (
+          <div className="w-full mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+            <CheckCircle className="h-6 w-6 text-green-600" />
+            <div>
+              <p className="font-medium text-green-800">Payment Successful!</p>
+              <p className="text-sm text-green-600">{purchasedCoins} coins have been added to your account.</p>
+            </div>
+          </div>
+        )}
 
         <div className="w-full p-8 rounded-xl glass-panel">
           <div className="text-center mb-8">
@@ -129,7 +161,7 @@ const Store = () => {
           <div className="grid gap-6 md:grid-cols-3">
             {coinPackages.map((pkg) => (
               <div 
-                key={pkg.amount}
+                key={pkg.id}
                 className={`p-6 rounded-lg border relative ${
                   pkg.popular ? 'border-primary shadow-md' : 'border-gray-200'
                 }`}
@@ -145,13 +177,22 @@ const Store = () => {
                   <div className="text-2xl font-bold mb-1">{pkg.amount} Coins</div>
                   <div className="text-gray-500 mb-4">${pkg.price.toFixed(2)}</div>
                   <Button
-                    onClick={() => handlePurchase(pkg.amount, pkg.price)}
+                    onClick={() => handlePurchase(pkg.id)}
                     disabled={isProcessing}
                     className="w-full"
                     variant={pkg.popular ? "default" : "outline"}
                   >
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Purchase
+                    {processingPackage === pkg.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Purchase
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -164,7 +205,7 @@ const Store = () => {
               <li>Each coin allows you to upload one file larger than 100MB</li>
               <li>New accounts receive 1 free coin</li>
               <li>Coins never expire</li>
-              <li>Payments are processed securely</li>
+              <li>Payments are processed securely via Stripe</li>
             </ul>
           </div>
         </div>
@@ -173,79 +214,6 @@ const Store = () => {
       <footer className="mt-16 text-center text-sm text-gray-500">
         <p>Designed with simplicity in mind • {new Date().getFullYear()}</p>
       </footer>
-
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              {paymentStep === 'card' && "Payment Details"}
-              {paymentStep === 'processing' && "Processing Payment"}
-              {paymentStep === 'success' && "Payment Successful"}
-            </DialogTitle>
-            <DialogDescription>
-              {paymentStep === 'card' && `Purchase ${currentPackage?.amount} coins for $${currentPackage?.price.toFixed(2)}`}
-              {paymentStep === 'processing' && "Please wait while we process your payment"}
-              {paymentStep === 'success' && `You've successfully purchased ${currentPackage?.amount} coins!`}
-            </DialogDescription>
-          </DialogHeader>
-
-          {paymentStep === 'card' && (
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Card Information</h3>
-                <div className="rounded-md border border-input p-3 text-sm">
-                  <p className="text-muted-foreground">Demo Mode: No real payment will be processed</p>
-                  <p className="font-medium mt-1">4242 4242 4242 4242</p>
-                  <div className="flex justify-between mt-2">
-                    <span>Any future date</span>
-                    <span>Any 3 digits</span>
-                  </div>
-                </div>
-              </div>
-
-              <Alert>
-                <AlertDescription>
-                  This is a demo payment system. No real payment will be processed.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-
-          {paymentStep === 'processing' && (
-            <div className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-center text-sm text-muted-foreground">
-                Processing your payment...
-              </p>
-            </div>
-          )}
-
-          {paymentStep === 'success' && (
-            <div className="flex flex-col items-center justify-center py-8">
-              <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-                <Coins className="h-8 w-8 text-green-600" />
-              </div>
-              <p className="text-center text-sm text-muted-foreground">
-                {currentPackage?.amount} coins have been added to your account!
-              </p>
-            </div>
-          )}
-
-          <DialogFooter>
-            {paymentStep === 'card' && (
-              <Button onClick={handlePaymentSubmit} className="w-full">
-                Pay ${currentPackage?.price.toFixed(2)}
-              </Button>
-            )}
-            {paymentStep === 'success' && (
-              <Button onClick={() => setShowPaymentDialog(false)} className="w-full">
-                Done
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
