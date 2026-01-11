@@ -53,7 +53,7 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/store?success=true&coins=${coinPackage.coins}&userId=${userId}`,
+      success_url: `${req.headers.get("origin")}/store?success=true&coins=${coinPackage.coins}&userId=${userId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/store?canceled=true`,
       metadata: {
         userId,
