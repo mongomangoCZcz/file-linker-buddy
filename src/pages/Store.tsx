@@ -30,8 +30,20 @@ const Store = () => {
     const success = searchParams.get('success');
     const coins = searchParams.get('coins');
     const userId = searchParams.get('userId');
+    const sessionId = searchParams.get('session_id');
     
-    if (success === 'true' && coins && userId) {
+    if (success === 'true' && coins && userId && sessionId) {
+      // Check if this payment session has already been processed
+      const processedKey = `payment_processed_${sessionId}`;
+      if (sessionStorage.getItem(processedKey)) {
+        // Already processed, just clear the URL and return
+        window.history.replaceState({}, '', '/store');
+        return;
+      }
+      
+      // Mark this session as processed to prevent duplicate coin crediting
+      sessionStorage.setItem(processedKey, 'true');
+      
       const coinAmount = parseInt(coins, 10);
       setPurchasedCoins(coinAmount);
       setShowSuccess(true);
